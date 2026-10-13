@@ -3,7 +3,9 @@
 Genome-wide **B-allele frequency (BAF) and copy-number figure** from **hybrid-capture panel
 sequencing** (Illumina paired-end, tumour only) – built from the **off-target reads**. Even with a
 small panel (~150 kb) and only ~0.1× off-target depth, the figure shows LOH, gains, losses,
-amplifications and the estimated tumour cell content.
+amplifications and the estimated tumour cell content. Developed for the **NPMS v4**
+panel (Schnorrenberg et al. 2026), whose target regions are included; other hg19 panels work via
+`PANEL_BED`.
 
 ```text
 📥 FASTQ ──▶ ✂️ fastp (optional) ──▶ 🧬 bwa-mem2 (hg19) ──▶ 🧹 markdup
@@ -45,11 +47,7 @@ cd panel-baf
 # 1. Once: check the modules (report the output if anything is missing)
 bash scripts/check_palma_modules.sh 2>&1 | tee palma_modules.txt
 
-# 2. Provide the panel BED (hg19, "chr" names) -- not part of the repository
-mkdir -p references
-cp /path/to/panel_targets_hg19.bed references/panel_targets.bed
-
-# 3. Copy the FASTQs into input/ and start
+# 2. Copy the FASTQs into input/ and start (default panel: NPMS v4, see below)
 cp /path/to/*_R1_001.fastq.gz /path/to/*_R2_001.fastq.gz input/
 bash run_pipeline.sh --mail christian.thomas@ukmuenster.de
 ```
@@ -65,22 +63,30 @@ Options:
 ```bash
 bash run_pipeline.sh --partition normal            # fixed partition
 FIG_WIDTH_MM=180 bash run_pipeline.sh              # Nature width
-PANEL_BED=/cloud/.../panel.bed bash run_pipeline.sh
+PANEL_BED=/path/to/other_panel_hg19.bed bash run_pipeline.sh   # another panel
 ```
+
+## 🎯 Panel
+
+`panel/NPMS_v4_targets_hg19.bed` contains the technical target regions of the **NPMS v4** panel
+(400 regions, 150,948 bp, hg19; column 4 = capture tier) as published in
+**Schnorrenberg et al. 2026**. It is the default `PANEL_BED`. Any other hg19 target BED with UCSC
+chromosome names (`chr1` …) can be used instead; targets ± 1 kb are masked for the off-target read
+depth, on-target SNPs are used for the BAF.
 
 ## 📥 Input / 📤 Output
 
 | Path | Content |
 | --- | --- |
 | `input/<sample>_R1_001.fastq.gz` + `_R2_001` | Illumina paired-end FASTQs (flat, no subfolders) |
-| `references/panel_targets.bed` | panel targets (hg19); **not in the repository** |
+| `panel/NPMS_v4_targets_hg19.bed` | panel targets (hg19), default `PANEL_BED` |
 | **`output/<sample>/<sample>.genome_BAF_logR.png`** | figure, 600 dpi |
 | **`output/<sample>/<sample>.genome_BAF_logR.pdf`** | figure, vector (editable text, rasterized points) |
 | `tmp/<sample>/` | BAM, allele counts, 1-Mb bins, segments with calls, purity fit (intermediate) |
 
 Trimmed FASTQs (only created if fastp is available) are deleted at the end of each sample job.
 
-**Example output** – tumour sample, ~150-kb panel, ~20 M read pairs (tumour cell content ~61 %):
+**Example output** – tumour sample, NPMS v4 panel, ~20 M read pairs (tumour cell content ~61 %):
 gain of chromosome 7 with focal high-level amplification (off-scale, log2 3.5), loss with LOH of
 chromosome 10 and 13q, gains of chromosomes 19 and 20.
 
@@ -145,3 +151,7 @@ hotspot-robust rate estimation, HMM segmentation, LOWESS, sample discovery and t
 > [!IMPORTANT]
 > `input/`, `output/`, `tmp/`, `log/` and `references/` never belong in the repository. Review
 > all results before any diagnostic use.
+
+## 📖 Reference
+
+If you use the NPMS v4 panel or its target regions, please cite Schnorrenberg et al. 2026.

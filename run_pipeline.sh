@@ -25,7 +25,7 @@ done
 
 if [ ! -s "$PANEL_BED" ]; then
     echo "Panel BED not found: $PANEL_BED" >&2
-    echo "Copy the target BED (hg19) there or set PANEL_BED=/path/to/panel.bed" >&2
+    echo "Set PANEL_BED=/path/to/panel.bed (hg19 target regions)" >&2
     exit 1
 fi
 if ! command -v module >/dev/null 2>&1 && [ ! -x "$ENV_BAF/bin/python" ]; then

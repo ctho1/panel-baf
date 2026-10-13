@@ -11,9 +11,9 @@
 : "${SLURM_CPU_PARTITIONS:=normal,requeue}"
 : "${SLURM_FALLBACK_PARTITION:=normal}"
 
-# Panel target BED (hg19, UCSC "chr" names). Not part of the repository --
-# copy the panel BED to this path or override PANEL_BED.
-: "${PANEL_BED:=$REPO_ROOT/references/panel_targets.bed}"
+# Panel target BED (hg19, UCSC "chr" names). Default: the NPMS v4 panel shipped with the repository
+# (Schnorrenberg et al. 2026); set PANEL_BED for other panels.
+: "${PANEL_BED:=$REPO_ROOT/panel/NPMS_v4_targets_hg19.bed}"
 
 # ── Software ────────────────────────────────────────────────────────────────
 # On PALMA everything comes from the module system (no conda needed); the
