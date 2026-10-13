@@ -5,7 +5,7 @@
 
 : "${MAIL_USER:=}"
 
-# SLURM partition selection (same logic as mNGS-pipeline): normal + requeue,
+# SLURM partition selection: normal + requeue,
 # ranked by idle CPUs; requeue jobs resume at the last finished step.
 : "${SLURM_AUTO_PARTITION:=true}"
 : "${SLURM_CPU_PARTITIONS:=normal,requeue}"
@@ -21,7 +21,7 @@
 # scripts/software.sh). Check availability with scripts/check_palma_modules.sh.
 # Without a `module` command (local tests) the conda env from
 # scripts/setup_envs.sh is used instead; USE_CONDA=true forces conda.
-: "${ALIGNER:=bwa-mem2}"     # bwa-mem2 (index *.bwt.2bit.64, as mNGS-pipeline) | bwa (classic index *.bwt/*.sa)
+: "${ALIGNER:=bwa-mem2}"     # bwa-mem2 (index *.bwt.2bit.64) | bwa (classic index *.bwt/*.sa)
 : "${BWA_MODULES:=palma/2024a GCC/13.3.0 bwa-mem2/2.2.1}"
 : "${SAMTOOLS_MODULES:=palma/2024a GCC/13.3.0 SAMtools/1.21}"
 : "${BCFTOOLS_MODULES:=palma/2024a GCC/13.3.0 BCFtools/1.21 HTSlib/1.21}"
@@ -32,7 +32,7 @@
 ENV_BAF="$CONDA_ENV_DIR/baf"
 
 # ── Reference ───────────────────────────────────────────────────────────────
-# hg19 + bwa-mem2 index shared with mNGS-pipeline (/cloud, UCSC "chr" names);
+# Shared hg19 + bwa-mem2 index on PALMA (/cloud, UCSC "chr" names);
 # prepare_reference.sh symlinks fasta, .fai and index into references/.
 : "${EXISTING_HG19_FASTA:=/cloud/wwu1/e_np_ngs/references/genomes/hg19.fa}"
 : "${HG19_FASTA_URL:=https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz}"

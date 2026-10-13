@@ -1,6 +1,6 @@
 #!/bin/bash
 # Provides all reference data (run once, before the sample jobs):
-#   - hg19 + aligner index: the reference shared with mNGS-pipeline (EXISTING_HG19_FASTA)
+#   - hg19 + aligner index: the shared reference (EXISTING_HG19_FASTA)
 #     is symlinked; otherwise UCSC download (index is only built for ALIGNER=bwa)
 #   - SNP panel: 1000 Genomes phase 3 biallelic SNVs with global MAF >= SNP_MIN_MAF,
 #     incl. superpopulation AFs (AF, EAS, AMR, AFR, EUR, SAS)
@@ -34,7 +34,7 @@ fetch() {  # fetch <url> <dest>  (atomic)
 
 echo "=== Preparing reference (hg19, $ALIGNER) ==="
 
-# 1. hg19 (shared with mNGS-pipeline) + .fai
+# 1. hg19 (shared reference) + .fai
 if [ ! -s "$HG19_FASTA" ]; then
     if [ -s "$EXISTING_HG19_FASTA" ]; then
         echo "Using existing hg19 FASTA: $EXISTING_HG19_FASTA"

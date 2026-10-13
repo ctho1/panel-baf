@@ -1,6 +1,6 @@
 #!/bin/bash
 # Per-sample job (Illumina paired-end, hybrid-capture panel). Called by run_pipeline.sh.
-#   [fastp, optional] -> bwa-mem2 mem (hg19 shared with mNGS-pipeline) -> fixmate/sort/markdup
+#   [fastp, optional] -> bwa-mem2 mem (hg19) -> fixmate/sort/markdup
 #   -> allele counts at 1000G SNPs (bcftools) -> BAF likelihoods + off-target log2 ratio
 #   -> segmentation, purity fit, calls -> genome-wide figure (PNG + PDF)
 #

@@ -2,7 +2,7 @@
 # Only for systems WITHOUT a module system (e.g. local testing on a Mac). On PALMA all
 # software comes from the modules in scripts/config.sh -- no conda env is needed there.
 #
-# As in mNGS-pipeline: `mamba create` with --override-channels --no-channel-priority
+# Uses `mamba create` with --override-channels --no-channel-priority
 # (works around a libmamba solver bug with channel_priority=strict).
 set -euo pipefail
 

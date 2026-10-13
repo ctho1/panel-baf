@@ -63,5 +63,5 @@ for m in ("numpy", "scipy", "pandas", "matplotlib"):
         print(f"{m:10s} MISSING ({exc})")
 EOF
 echo
-echo "### 4. Reference (shared with mNGS-pipeline)"
+echo "### 4. Shared hg19 reference (EXISTING_HG19_FASTA)"
 ls -la "$EXISTING_HG19_FASTA"* 2>&1 | head -12

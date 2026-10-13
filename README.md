@@ -6,7 +6,7 @@ small panel (~150 kb) and only ~0.1× off-target depth, the figure shows LOH, ga
 amplifications and the estimated tumour cell content.
 
 ```text
-📥 FASTQ ──▶ ✂️ fastp (optional) ──▶ 🧬 bwa-mem2 (hg19, shared with mNGS-pipeline) ──▶ 🧹 markdup
+📥 FASTQ ──▶ ✂️ fastp (optional) ──▶ 🧬 bwa-mem2 (hg19) ──▶ 🧹 markdup
                                                 │
                  ┌──────────────────────────────┴──────────────────────────────┐
                  ▼                                                              ▼
@@ -56,7 +56,7 @@ bash run_pipeline.sh --mail christian.thomas@ukmuenster.de
 
 On the first run `prepare_reference.sh` runs as a preceding job (~30 min, mostly downloads:
 1000G SNP panel, Alu track, cytobands, GC/mappability wigs; ~1 GB). hg19 and the bwa-mem2 index
-are **not** rebuilt but linked from mNGS-pipeline
+are **not** rebuilt but linked from the shared reference
 (`/cloud/wwu1/e_np_ngs/references/genomes/hg19.fa`). All sample jobs wait for the reference job
 via `--dependency`.
 
@@ -79,6 +79,12 @@ PANEL_BED=/cloud/.../panel.bed bash run_pipeline.sh
 | `tmp/<sample>/` | BAM, allele counts, 1-Mb bins, segments with calls, purity fit (intermediate) |
 
 Trimmed FASTQs (only created if fastp is available) are deleted at the end of each sample job.
+
+**Example output** – tumour sample, ~150-kb panel, ~20 M read pairs (tumour cell content ~61 %):
+gain of chromosome 7 with focal high-level amplification (off-scale, log2 3.5), loss with LOH of
+chromosome 10 and 13q, gains of chromosomes 19 and 20.
+
+![Example output: genome-wide BAF, copy-number and call tracks](docs/example_output.png)
 
 ## 🖼️ Figure
 
