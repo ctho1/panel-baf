@@ -18,7 +18,8 @@ from baf_model import robust_rate  # noqa: E402
 # reference palette (light): surface / ink / categorical slots
 SURF, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
 BLUE, ORANGE = "#2a78d6", "#eb6834"
-POINT, POINT_SIZE = "#d3d1ca", 6          # BAF panel: every point light grey, same size
+POINT, POINT_SIZE = "#d3d1ca", 3          # BAF panel: every point light grey, same size
+LOGR_SIZE = 3
 CALL_COL = {"Amplification": "#8f1d1d", "Gain (imbalanced)": "#e34948", "Gain (BAF n.s.)": "#f0a3a2",
             "Gain (balanced)": "#f0a3a2", "Loss/LOH": "#256abf", "Loss (BAF n.s.)": "#9ec5f4",
             "CN-LOH": "#6250d6", "Possible imbalance": "#c9c3f2"}
@@ -38,6 +39,7 @@ params = json.load(open(P.t("params.json")))
 purity = json.load(open(P.o("purity.json")))["purity"]
 fai = pd.read_csv(P.r("hg19_primary.fa.fai"), sep="\t", header=None, usecols=[0, 1], names=["c", "L"]).set_index("c").L
 cyto = pd.read_csv(P.r("cytoBand_hg19.txt.gz"), sep="\t", header=None, names=["chrom", "s", "e", "band", "stain"])
+CEN = cyto[cyto.stain == "acen"].groupby("chrom").apply(lambda g: (g.s.min() + g.e.max()) / 2).to_dict()
 plot_chroms = CHROMS if params["sex"] == "female" else CHROMS[:-1]
 off, acc = {}, 0
 for c in plot_chroms:
@@ -64,6 +66,13 @@ def chrom_axes(ax, ymin, ymax, labels=True):
     ax.set_xticks([off[c] + fai[c] / 2 for c in plot_chroms])
     ax.set_xticklabels([c.replace("chr", "") for c in plot_chroms] if labels else [], fontsize=8)
     ax.tick_params(axis="x", length=0)
+
+
+def draw_centromeres(ax, xf, chroms):
+    """Very thin dashed vertical line at each centromere (midpoint of the acen bands)."""
+    for c in chroms:
+        if c in CEN:
+            ax.axvline(float(xf(c, CEN[c])), color=MUTED, lw=0.4, ls=(0, (3, 3)), zorder=1)
 
 
 def window_baf(b, size=3, step=1):
@@ -106,7 +115,7 @@ def draw_baf(ax, b, sg, sn, xf, wsize=3, min_depth=8):
 
 def draw_logr(ax, b, sg, xf, ylim=(-1.5, 1.6)):
     ok = b.usable
-    ax.scatter(xf(b.chrom[ok], (b.start[ok] + b.end[ok]) / 2), b.logR[ok].clip(*ylim), s=6, c=BLUE, alpha=0.45,
+    ax.scatter(xf(b.chrom[ok], (b.start[ok] + b.end[ok]) / 2), b.logR[ok].clip(*ylim), s=LOGR_SIZE, c=BLUE, alpha=0.45,
                lw=0, zorder=2)
     hi = b[ok & (b.logR > ylim[1])]
     ax.scatter(xf(hi.chrom, (hi.start + hi.end) / 2), np.full(len(hi), ylim[1] - 0.05), marker="^", s=30,
@@ -137,8 +146,10 @@ fig, axs = plt.subplots(3, 1, figsize=(16, 8.2), sharex=True, gridspec_kw=dict(h
 gb = bins[bins.chrom.isin(plot_chroms)]
 draw_baf(axs[0], gb, segs, snps[snps.chrom.isin(plot_chroms)], xf_genome, wsize=5)
 chrom_axes(axs[0], -0.02, 1.02, labels=False)
+draw_centromeres(axs[0], xf_genome, plot_chroms)
 draw_logr(axs[1], gb, segs, xf_genome)
 chrom_axes(axs[1], -1.5, 1.6, labels=False)
+draw_centromeres(axs[1], xf_genome, plot_chroms)
 draw_calls(axs[2], segs, xf_genome)
 chrom_axes(axs[2], 0, 1)
 fig.suptitle(f"{S} – BAF and copy-number profile (panel, on- + off-target SNPs; hg19; {pur}; "
@@ -162,6 +173,8 @@ for c in plot_chroms:
     fig, axs = plt.subplots(2, 1, figsize=(9, 5.2), sharex=True, gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.08))
     draw_baf(axs[0], b, sg, snps[snps.chrom == c], xf_chrom, wsize=3)
     draw_logr(axs[1], b, sg, xf_chrom, ylim=(-1.5, max(1.6, min(np.nanmax(b.logR.values) + 0.3, 6))))
+    for ax in axs:
+        draw_centromeres(ax, xf_chrom, [c])
     axs[1].set_xlabel(f"{c} position (Mb)")
     axs[0].set_title(f"{S} – {c}", loc="left", color=INK, fontsize=11)
     for ax in axs:
