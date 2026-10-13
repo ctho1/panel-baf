@@ -18,6 +18,7 @@ from baf_model import robust_rate  # noqa: E402
 # reference palette (light): surface / ink / categorical slots
 SURF, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
 BLUE, ORANGE = "#2a78d6", "#eb6834"
+POINT, POINT_SIZE = "#d3d1ca", 6          # BAF panel: every point light grey, same size
 CALL_COL = {"Amplification": "#8f1d1d", "Gain (imbalanced)": "#e34948", "Gain (BAF n.s.)": "#f0a3a2",
             "Gain (balanced)": "#f0a3a2", "Loss/LOH": "#256abf", "Loss (BAF n.s.)": "#9ec5f4",
             "CN-LOH": "#6250d6", "Possible imbalance": "#c9c3f2"}
@@ -81,22 +82,21 @@ def window_baf(b, size=3, step=1):
 
 
 def draw_baf(ax, b, sg, sn, xf, wsize=3, min_depth=8):
+    """All points (window estimates + single het SNPs) in one light grey and one size, so the segments carry the
+    message; called segments orange, uncalled segments darker grey."""
     d = sn[sn.depth >= min_depth].assign(vaf=lambda x: x.alt_n / x.depth)
     d = d[(d.vaf > 0.03) & (d.vaf < 0.97)]      # apparent hets only; homozygous SNPs carry no BAF information
-    o = d.region == "off"
-    ax.scatter(xf(d.chrom[o], d.pos[o]), d.vaf[o], s=4, c=MUTED, alpha=0.35, lw=0, zorder=2)
-    ax.scatter(xf(d.chrom[~o], d.pos[~o]), d.vaf[~o], s=9, c=INK2, alpha=0.75, lw=0, zorder=3, marker="D")
+    ax.scatter(xf(d.chrom, d.pos), d.vaf, s=POINT_SIZE, c=POINT, lw=0, zorder=2)
     w = window_baf(b, wsize)
-    w = w[(w.hi - w.lo) <= 0.35]
-    alpha = np.clip(1 - (w.hi - w.lo) / 0.4, 0.15, 0.95).values
+    w = w[(w.hi - w.lo) <= 0.35]                 # drop uninformative windows
     xb = xf(w.chrom, w.x)
     for y in (w.b, 1 - w.b):
-        ax.scatter(xb, y, s=10, c=BLUE, alpha=alpha, lw=0, zorder=3)
+        ax.scatter(xb, y, s=POINT_SIZE, c=POINT, lw=0, zorder=2)
     for _, r in sg.iterrows():
         x0, x1 = xf(r.chrom, r.start), xf(r.chrom, r.end)
         called = r.call in CALL_COL
         for y in (r.b, 1 - r.b):
-            ax.plot([x0, x1], [y, y], color=ORANGE if called else MUTED, lw=2.2 if called else 1.2,
+            ax.plot([x0, x1], [y, y], color=ORANGE if called else MUTED, lw=2.6 if called else 1.6,
                     solid_capstyle="round", zorder=4)
     ax.axhline(0.5, color=AXIS, lw=0.8, ls=(0, (3, 3)), zorder=1)
     ax.set_ylim(-0.02, 1.02)
@@ -143,12 +143,11 @@ draw_calls(axs[2], segs, xf_genome)
 chrom_axes(axs[2], 0, 1)
 fig.suptitle(f"{S} – BAF and copy-number profile (panel, on- + off-target SNPs; hg19; {pur}; "
              f"{params['sex']}, AF: {params['population']})", x=0.125, y=0.965, ha="left", color=INK, fontsize=11)
-h = [plt.Line2D([], [], ls="", marker="o", color=BLUE, label="BAF estimate b / 1−b, sliding 5 Mb (step 1 Mb; opacity ~ precision)"),
-     plt.Line2D([], [], ls="", marker="D", color=INK2, ms=4, label="Het. SNP on/near-target"),
-     plt.Line2D([], [], ls="", marker="o", color=MUTED, ms=3, label="Het. SNP off-target (≥8 reads)"),
-     plt.Line2D([], [], color=ORANGE, lw=2, label="Segment with call"),
-     plt.Line2D([], [], color=MUTED, lw=1.2, label="Segment without call")]
-axs[0].legend(handles=h, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=5, frameon=False, fontsize=8, labelcolor=INK2)
+h = [plt.Line2D([], [], ls="", marker="o", color=POINT, ms=4,
+                label="BAF: sliding 5-Mb estimates b / 1−b and het. SNPs (≥8 reads)"),
+     plt.Line2D([], [], color=ORANGE, lw=2.6, label="Segment with call"),
+     plt.Line2D([], [], color=MUTED, lw=1.6, label="Segment without call")]
+axs[0].legend(handles=h, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False, fontsize=8, labelcolor=INK2)
 ch = [Rectangle((0, 0), 1, 1, color=v, label=k) for k, v in CALL_COL.items() if k in set(segs.call)]
 if ch:
     axs[2].legend(handles=ch, loc="upper left", bbox_to_anchor=(0, -0.9), ncol=len(ch), frameon=False, fontsize=8,
