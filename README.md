@@ -50,7 +50,7 @@ bash scripts/check_palma_modules.sh 2>&1 | tee palma_modules.txt
 
 # 2. Copy the FASTQs into input/ and start (default panel: NPMS v4, see below)
 cp /path/to/*_R1_001.fastq.gz /path/to/*_R2_001.fastq.gz input/
-bash run_pipeline.sh --mail christian.thomas@ukmuenster.de
+bash run_pipeline.sh
 ```
 
 On the first run `prepare_reference.sh` runs as a preceding job (~30 min, mostly downloads:

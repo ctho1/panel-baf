@@ -3,8 +3,6 @@
 # any value via env var, e.g.:
 #   PANEL_BED=/path/to/panel.bed bash run_pipeline.sh
 
-: "${MAIL_USER:=}"
-
 # SLURM partition selection: normal + requeue,
 # ranked by idle CPUs; requeue jobs resume at the last finished step.
 : "${SLURM_AUTO_PARTITION:=true}"
@@ -52,7 +50,7 @@ SNP_PANEL="$REF_DIR/snps_1kg_maf05.tsv.gz"   # chrom pos ref alt AF EAS AMR AFR 
 # Figure: final print width in mm (174 = Springer double column, 180 = Nature)
 : "${FIG_WIDTH_MM:=174}"
 
-export MAIL_USER PANEL_BED
+export PANEL_BED
 export SLURM_AUTO_PARTITION SLURM_CPU_PARTITIONS SLURM_FALLBACK_PARTITION
 export ALIGNER BWA_MODULES SAMTOOLS_MODULES BCFTOOLS_MODULES PYTHON_MODULES FASTP_MODULES USE_CONDA ENV_BAF
 export EXISTING_HG19_FASTA HG19_FASTA_URL REF_DIR HG19_FASTA
