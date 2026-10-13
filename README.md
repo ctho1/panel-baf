@@ -3,9 +3,10 @@
 Genome-wide **B-allele frequency (BAF) and copy-number figure** from **hybrid-capture panel
 sequencing** (Illumina paired-end, tumour only) – built from the **off-target reads**. Even with a
 small panel (~150 kb) and only ~0.1× off-target depth, the figure shows LOH, gains, losses,
-amplifications and the estimated tumour cell content. Developed for the **NPMS v4**
-panel (Schnorrenberg et al. 2026), whose target regions are included; other hg19 panels work via
-`PANEL_BED`.
+amplifications and the estimated tumour cell content. It builds on the off-target CNV profiling
+approach of [Schnorrenberg et al. 2026](https://doi.org/10.1111/nan.70070) and adds allelic
+imbalance (BAF/LOH). The target regions of the **NPMS v4** panel used there are included; other
+hg19 panels work via `PANEL_BED`.
 
 ```text
 📥 FASTQ ──▶ ✂️ fastp (optional) ──▶ 🧬 bwa-mem2 (hg19) ──▶ 🧹 markdup
@@ -69,8 +70,9 @@ PANEL_BED=/path/to/other_panel_hg19.bed bash run_pipeline.sh   # another panel
 ## 🎯 Panel
 
 `panel/NPMS_v4_targets_hg19.bed` contains the technical target regions of the **NPMS v4** panel
-(400 regions, 150,948 bp, hg19; column 4 = capture tier) as published in
-**Schnorrenberg et al. 2026**. It is the default `PANEL_BED`. Any other hg19 target BED with UCSC
+(400 regions, 150,948 bp, hg19; column 4 = capture tier), the small custom hybrid-capture panel
+(< 0.2 Mb) published in [Schnorrenberg et al. 2026](https://doi.org/10.1111/nan.70070). It is the
+default `PANEL_BED`. Any other hg19 target BED with UCSC
 chromosome names (`chr1` …) can be used instead; targets ± 1 kb are masked for the off-target read
 depth, on-target SNPs are used for the BAF.
 
@@ -154,4 +156,11 @@ hotspot-robust rate estimation, HMM segmentation, LOWESS, sample discovery and t
 
 ## 📖 Reference
 
-If you use the NPMS v4 panel or its target regions, please cite Schnorrenberg et al. 2026.
+If you use this pipeline, the NPMS v4 panel or its target regions, please cite:
+
+> Schnorrenberg J, Adrian YL, Schlathölter J, Ruckert C, Horvath J, Paulus W, Hasselblatt M,
+> Thomas C. Detection of Copy-Number Variations in CNS Tumours From Off-Target Reads of
+> Hybrid-Capture Sequencing. *Neuropathol Appl Neurobiol.* 2026;52(2):e70070.
+> doi:[10.1111/nan.70070](https://doi.org/10.1111/nan.70070) · PMID
+> [41834733](https://pubmed.ncbi.nlm.nih.gov/41834733/) · PMCID
+> [PMC12989910](https://pmc.ncbi.nlm.nih.gov/articles/PMC12989910/)

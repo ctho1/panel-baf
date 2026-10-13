@@ -12,7 +12,7 @@
 : "${SLURM_FALLBACK_PARTITION:=normal}"
 
 # Panel target BED (hg19, UCSC "chr" names). Default: the NPMS v4 panel shipped with the repository
-# (Schnorrenberg et al. 2026); set PANEL_BED for other panels.
+# (Schnorrenberg et al. 2026, doi:10.1111/nan.70070); set PANEL_BED for other panels.
 : "${PANEL_BED:=$REPO_ROOT/panel/NPMS_v4_targets_hg19.bed}"
 
 # ── Software ────────────────────────────────────────────────────────────────
