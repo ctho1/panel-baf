@@ -1,0 +1,18 @@
+# Rohdaten, Referenzen & generierte Ergebnisse -- nie committen (Patientendaten!)
+/input/*
+!/input/.gitkeep
+/references/
+/output/
+/tmp/
+/log/
+/conda_envs/
+
+*.bed
+*.bam
+*.bai
+*.fastq.gz
+*.fq.gz
+*.vcf.gz
+__pycache__/
+*.pyc
+.DS_Store
