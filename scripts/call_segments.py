@@ -8,7 +8,7 @@ Purity/state fit ("ASCAT-lite"; the dominant state is assumed to be 1+1):
   score(p, gamma) = sum_seg max_state [ LL_b,seg(b_exp) + LL_logR,seg ] - penalty(state != 1+1)
 LL_b is the exact profile log-likelihood of each segment; LL_logR is Gaussian with the segment SE plus a
 systematic floor. gamma < 1 allows for compression of the off-target log2 ratio.
-Outputs (output/<sample>/): segments.tsv, arms.tsv, purity.json
+Outputs (tmp/<sample>/): segments_called.tsv, arms_called.tsv, purity.json
 """
 import json
 
@@ -119,13 +119,13 @@ def main():
             den = r.b * (a + b - 2) + 1 - b
             imp.append(float(np.clip((1 - 2 * r.b) / den, 0, 1)) if a != b and den != 0 else np.nan)
         tab["purity_from_b"] = imp
-        tab.to_csv(P.o(f"{name}.tsv"), sep="\t", index=False, float_format="%.4g")
+        tab.to_csv(P.t(f"{name}_called.tsv"), sep="\t", index=False, float_format="%.4g")
 
     res = dict(purity=p_hat if informative else None, purity_CI_2LL=p_ci if informative else None,
                logR_gamma=g_hat if informative else None, score=score, fit_segments=int(m.sum()),
                state_penalty=STATE_PENALTY,
                note=None if informative else "no imbalanced/aneuploid segment -> purity not estimable")
-    json.dump(res, open(P.o("purity.json"), "w"), indent=1)
+    json.dump(res, open(P.t("purity.json"), "w"), indent=1)
     pd.set_option("display.width", 250); pd.set_option("display.max_rows", 500)
     print(f"purity={res['purity']} (CI {res['purity_CI_2LL']}) gamma={res['logR_gamma']}")
     cols = ["arm", "start", "end", "n_bins", "logR", "b", "b_lo", "b_hi", "p_imbalance", "call", "confidence", "fit_state"]

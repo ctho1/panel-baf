@@ -17,22 +17,22 @@ import json
 import numpy as np
 import pandas as pd
 from scipy import stats
-from statsmodels.nonparametric.smoothers_lowess import lowess
 
-from baf_common import AUTOSOMES, BGRID, BIN, CHROMS, bci, load_arms, load_wig, parse_args, read_bed
-from baf_model import DELTA, EPS, RHO, profiled_ll, robust_rate, snp_loglik, thin, viterbi_segment
+from baf_common import AUTOSOMES, BGRID, BIN, CHROMS, REF_FASTA, bci, load_arms, load_wig, parse_args, read_bed, read_fai
+from baf_model import DELTA, EPS, RHO, lowess, profiled_ll, robust_rate, snp_loglik, thin, viterbi_segment
 
 WIN = 10_000
 MASK_PAD = 1000
 THIN_BP = 150
 OFF_CAP = 15          # off-target SNPs: cap effective depth (capture hotspots / paralog mismapping)
+MIN_UNIQUE_FRAC = 0.5      # min. fraction of reads with MAPQ >= 20 per 10-kb window
+MIN_UNIQUE_FRAC_BIN = 0.8  # ... and per 1-Mb bin (edges of alt-contig / segmental-duplication regions)
 POPS = ["AF", "EUR", "AFR", "AMR", "EAS", "SAS"]
 JUMP_LOGP = -15.0
 
 
 def build_bins(P, chroms):
-    fai = pd.read_csv(P.r("hg19_primary.fa.fai"), sep="\t", header=None, usecols=[0, 1],
-                      names=["chrom", "len"]).set_index("chrom")["len"]
+    fai = read_fai(P.r(REF_FASTA))["len"]
     gcw, mpw = load_wig(P.r("gc_hg19_10kb.wig")), load_wig(P.r("map_hg19_10kb.wig"))
     bed = read_bed(P.bed)
     alu = pd.read_csv(P.r("alu_hg19.bed.gz"), sep="\t", header=None, names=["chrom", "s", "e"])
@@ -41,6 +41,7 @@ def build_bins(P, chroms):
     for c in chroms:
         L, n = int(fai[c]), len(gcw[c])
         cnt = np.bincount(frag[c] // WIN, minlength=n)[:n]
+        cnt_all = np.bincount(frag[c + "_all"] // WIN, minlength=n)[:n]
         masked = np.zeros(n, bool)
         sub = bed[bed.chrom == c]
         for s, e in zip(sub.s - MASK_PAD, sub.e + MASK_PAD):
@@ -51,32 +52,39 @@ def build_bins(P, chroms):
             am[s:e] = True
         starts = np.arange(0, L, BIN)
         alu_bin[c] = np.add.reduceat(am, starts) / np.diff(np.r_[starts, L])
-        win.append(pd.DataFrame(dict(chrom=c, start=np.arange(n) * WIN, count=cnt, gc=gcw[c], map=mpw[c], masked=masked)))
+        win.append(pd.DataFrame(dict(chrom=c, start=np.arange(n) * WIN, count=cnt, count_all=cnt_all, gc=gcw[c],
+                                     map=mpw[c], masked=masked)))
     win = pd.concat(win, ignore_index=True)
-    win["ok"] = (win["map"] >= 0.9) & (win.gc > 0.25) & (win.gc < 0.7) & ~win.masked
+    # reads that cannot be placed uniquely (MAPQ < 20 for most reads: alt haplotype contigs such as the MHC,
+    # segmental duplications) make a window unusable even if its reference mappability looks fine
+    unique = (win.count_all == 0) | (win["count"] >= MIN_UNIQUE_FRAC * win.count_all)
+    win["ok"] = (win["map"] >= 0.9) & (win.gc > 0.25) & (win.gc < 0.7) & ~win.masked & unique
     au = win[win.ok & (win.chrom != "chrX")]
     strata = [(g, robust_rate(grp["count"].values, np.ones(len(grp)))[0])
               for g, grp in au.groupby(np.round(au.gc / 0.005) * 0.005) if len(grp) >= 200]
     strata = np.array(strata)
-    fit = lowess(np.log(strata[:, 1]), strata[:, 0], frac=0.4, return_sorted=True)
+    fit = lowess(np.log(strata[:, 1]), strata[:, 0], frac=0.4)
     win["expected"] = np.exp(np.interp(win.gc, fit[:, 0], fit[:, 1]))
     win["bin"] = win.start // BIN
     rows = []
     for (c, bi), grp in win.groupby(["chrom", "bin"], sort=False):
         g = grp[grp.ok]
         lam, nkeep = robust_rate(g["count"].values, g.expected.values) if len(g) >= 30 else (np.nan, 0)
+        n_all = int(grp.count_all.sum())
         rows.append((c, bi * BIN, min((bi + 1) * BIN, int(fai[c])), int(grp["count"].sum()), len(g), nkeep, lam,
                      float(g.gc.mean()) if len(g) else np.nan, float(grp["map"].mean()),
-                     float(alu_bin[c][bi]) if bi < len(alu_bin[c]) else np.nan))
+                     float(alu_bin[c][bi]) if bi < len(alu_bin[c]) else np.nan,
+                     float(grp["count"].sum() / n_all) if n_all else np.nan))
     bins = pd.DataFrame(rows, columns=["chrom", "start", "end", "count_raw", "n_win_ok", "n_win_used", "rate",
-                                       "gc", "map", "alu_frac"])
+                                       "gc", "map", "alu_frac", "unique_frac"])
     win.drop(columns=["bin"]).to_csv(P.t("windows_10kb.tsv.gz"), sep="\t", index=False, float_format="%.4g")
     return bins
 
 
 def correct_logR(bins):
     """Backfitting LOWESS of log2 rate on Alu fraction and GC (autosomes); centre on the autosomal mode."""
-    ok = bins.rate.notna() & (bins.rate > 0) & (bins.n_win_used >= 30)
+    ok = (bins.rate.notna() & (bins.rate > 0) & (bins.n_win_used >= 30)
+          & (bins.unique_frac.fillna(0) >= MIN_UNIQUE_FRAC_BIN))   # e.g. MHC with alt haplotype contigs
     bins["usable"] = ok
     auto = (ok & bins.chrom.isin(AUTOSOMES)).values
     y = np.full(len(bins), np.nan)
@@ -84,9 +92,9 @@ def correct_logR(bins):
     mu = np.nanmedian(y[auto])
     f_alu = np.zeros(len(bins)); f_gc = np.zeros(len(bins))
     for _ in range(6):
-        fa = lowess(y[auto] - mu - f_gc[auto], bins.alu_frac.values[auto], frac=0.4, it=3, return_sorted=True)
+        fa = lowess(y[auto] - mu - f_gc[auto], bins.alu_frac.values[auto], frac=0.4, it=3)
         f_alu = np.interp(bins.alu_frac.values, fa[:, 0], fa[:, 1]); f_alu -= np.median(f_alu[auto])
-        fg = lowess(y[auto] - mu - f_alu[auto], bins.gc.values[auto], frac=0.4, it=3, return_sorted=True)
+        fg = lowess(y[auto] - mu - f_alu[auto], bins.gc.values[auto], frac=0.4, it=3)
         f_gc = np.interp(bins.gc.values, fg[:, 0], fg[:, 1]); f_gc -= np.median(f_gc[auto])
     lr = y - mu - f_alu - f_gc
     kde = stats.gaussian_kde(lr[auto], bw_method=0.1)

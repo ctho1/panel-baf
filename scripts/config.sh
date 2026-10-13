@@ -15,24 +15,29 @@
 # copy the panel BED to this path or override PANEL_BED.
 : "${PANEL_BED:=$REPO_ROOT/references/panel_targets.bed}"
 
-# Aligner + samtools from PALMA modules (conda's samtools hits a libdeflate
-# conflict there); loaded via `module purge && ml $MINIMAP2_MODULES $SAMTOOLS_MODULES`.
-# Locally (no `module` command) the conda env provides both.
-: "${MINIMAP2_MODULES:=palma/2024a GCCcore/13.3.0 minimap2/2.29}"
+# ── Software ────────────────────────────────────────────────────────────────
+# On PALMA everything comes from the module system (no conda needed); the
+# module lists are loaded together via `module purge && ml ...` (see
+# scripts/software.sh). Check availability with scripts/check_palma_modules.sh.
+# Without a `module` command (local tests) the conda env from
+# scripts/setup_envs.sh is used instead; USE_CONDA=true forces conda.
+: "${ALIGNER:=bwa-mem2}"     # bwa-mem2 (index *.bwt.2bit.64, as mNGS-pipeline) | bwa (classic index *.bwt/*.sa)
+: "${BWA_MODULES:=palma/2024a GCC/13.3.0 bwa-mem2/2.2.1}"
 : "${SAMTOOLS_MODULES:=palma/2024a GCC/13.3.0 SAMtools/1.21}"
-
-# Conda env (see scripts/setup_envs.sh): fastp, bcftools, mosdepth, python stack
+: "${BCFTOOLS_MODULES:=palma/2024a GCC/13.3.0 BCFtools/1.21 HTSlib/1.21}"
+: "${PYTHON_MODULES:=palma/2024a GCC/13.3.0 SciPy-bundle/2024.05 matplotlib/3.9.2}"
+: "${FASTP_MODULES:=}"       # optional adapter/polyG trimming; empty -> no trimming (bwa soft-clips adapters)
+: "${USE_CONDA:=auto}"
 : "${CONDA_ENV_DIR:=$REPO_ROOT/conda_envs}"
 ENV_BAF="$CONDA_ENV_DIR/baf"
 
-# hg19: shared fasta on PALMA (symlinked if present), else UCSC download.
-# Only primary chromosomes (chr1-22, X, Y, M) are used -- alt/hap contigs
-# would push reads in MHC & co. to MAPQ 0.
+# ── Reference ───────────────────────────────────────────────────────────────
+# hg19 + bwa-mem2 index shared with mNGS-pipeline (/cloud, UCSC "chr" names);
+# prepare_reference.sh symlinks fasta, .fai and index into references/.
 : "${EXISTING_HG19_FASTA:=/cloud/wwu1/e_np_ngs/references/genomes/hg19.fa}"
 : "${HG19_FASTA_URL:=https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz}"
 REF_DIR="$REPO_ROOT/references"
-HG19_PRIMARY="$REF_DIR/hg19_primary.fa"
-HG19_MMI_SR="$REF_DIR/hg19_primary.sr.mmi"
+HG19_FASTA="$REF_DIR/hg19.fa"
 
 # Annotation / population resources (downloaded once by prepare_reference.sh)
 : "${KG_SITES_URL:=https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.wgs.phase3_shapeit2_mvncall_integrated_v5c.20130502.sites.vcf.gz}"
@@ -44,12 +49,12 @@ SNP_PANEL="$REF_DIR/snps_1kg_maf05.tsv.gz"   # chrom pos ref alt AF EAS AMR AFR 
 # Threads (local override; on PALMA these come from SLURM_CPUS_PER_TASK)
 : "${THREADS_DEFAULT:=8}"
 
-# Genes for the focal zoom figure: groups separated by ";", genes within a group by ","
-: "${FOCAL_GENES:=EGFR;CDKN2A,CDKN2B;PTEN;PDGFRA,KIT}"
+# Figure: final print width in mm (174 = Springer double column, 180 = Nature)
+: "${FIG_WIDTH_MM:=174}"
 
 export MAIL_USER PANEL_BED
 export SLURM_AUTO_PARTITION SLURM_CPU_PARTITIONS SLURM_FALLBACK_PARTITION
-export MINIMAP2_MODULES SAMTOOLS_MODULES ENV_BAF
-export EXISTING_HG19_FASTA HG19_FASTA_URL REF_DIR HG19_PRIMARY HG19_MMI_SR
+export ALIGNER BWA_MODULES SAMTOOLS_MODULES BCFTOOLS_MODULES PYTHON_MODULES FASTP_MODULES USE_CONDA ENV_BAF
+export EXISTING_HG19_FASTA HG19_FASTA_URL REF_DIR HG19_FASTA
 export KG_SITES_URL UCSC_HG19_DB_URL ICHORCNA_EXTDATA_URL SNP_PANEL SNP_MIN_MAF
-export THREADS_DEFAULT FOCAL_GENES
+export THREADS_DEFAULT FIG_WIDTH_MM

@@ -1,0 +1,37 @@
+# Publication style for the genome-wide BAF / copy-number figure (final print size, no downscaling).
+font.family:          sans-serif
+font.sans-serif:      Arial, Helvetica, Liberation Sans, DejaVu Sans
+font.size:            6
+axes.labelsize:       7
+axes.titlesize:       7
+xtick.labelsize:      6
+ytick.labelsize:      6
+legend.fontsize:      6
+legend.frameon:       False
+axes.linewidth:       0.5
+axes.edgecolor:       black
+axes.labelcolor:      black
+axes.spines.top:      False
+axes.spines.right:    False
+axes.grid:            False
+axes.facecolor:       white
+axes.labelpad:        2
+xtick.direction:      out
+ytick.direction:      out
+xtick.major.width:    0.5
+ytick.major.width:    0.5
+xtick.major.size:     2
+ytick.major.size:     2
+xtick.major.pad:      1.5
+ytick.major.pad:      1.5
+xtick.color:          black
+ytick.color:          black
+lines.linewidth:      1.2
+lines.solid_capstyle: butt
+hatch.linewidth:      0.4
+figure.facecolor:     white
+savefig.facecolor:    white
+savefig.dpi:          600
+pdf.fonttype:         42
+ps.fonttype:          42
+svg.fonttype:         none

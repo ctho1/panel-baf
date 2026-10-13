@@ -49,7 +49,7 @@ def main(argv=None):
     candidates = [name.strip() for name in args.partitions.split(",") if name.strip()]
     if not candidates:
         print(args.fallback)
-        print("Keine SLURM-Kandidaten konfiguriert; nutze Fallback.", file=sys.stderr)
+        print("No SLURM candidate partitions configured; using the fallback.", file=sys.stderr)
         return
 
     try:
@@ -67,18 +67,18 @@ def main(argv=None):
         ranked, idle_cpus = parse_sinfo(result.stdout, candidates)
     except (OSError, subprocess.CalledProcessError) as exc:
         print(args.fallback)
-        print(f"SLURM-Auslastung nicht abfragbar ({exc}); nutze {args.fallback}.",
+        print(f"Could not query SLURM load ({exc}); using {args.fallback}.",
               file=sys.stderr)
         return
 
     if not ranked:
         print(args.fallback)
-        print(f"Keine aktive Kandidatenpartition gefunden; nutze {args.fallback}.",
+        print(f"No active candidate partition found; using {args.fallback}.",
               file=sys.stderr)
         return
 
-    summary = ", ".join(f"{name}: {idle_cpus[name]} freie CPUs" for name in ranked)
-    print(f"SLURM-Auslastung: {summary}", file=sys.stderr)
+    summary = ", ".join(f"{name}: {idle_cpus[name]} idle CPUs" for name in ranked)
+    print(f"SLURM load: {summary}", file=sys.stderr)
     print(",".join(ranked))
 
 

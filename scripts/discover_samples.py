@@ -43,7 +43,7 @@ def main():
     for sample, a, b in pairs:
         print(f"{sample}\t{a}\t{b}")
     for p in skipped:
-        print(f"SKIP {p} (kein R1/R2-Paar)", file=sys.stderr)
+        print(f"SKIP {p} (no R1/R2 pair)", file=sys.stderr)
 
 
 if __name__ == "__main__":

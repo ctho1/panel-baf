@@ -1,10 +1,9 @@
 #!/bin/bash
-# Legt die Conda-Env an (einmalig). Linux/PALMA: minimap2 + samtools kommen
-# aus dem Modulsystem; macOS (lokaler Test): zusätzlich aus Conda.
+# Only for systems WITHOUT a module system (e.g. local testing on a Mac). On PALMA all
+# software comes from the modules in scripts/config.sh -- no conda env is needed there.
 #
-# Wie in mNGS-pipeline: `mamba create` mit --override-channels
-# --no-channel-priority (umgeht den libmamba-Solver-Bug bei
-# channel_priority=strict auf PALMA).
+# As in mNGS-pipeline: `mamba create` with --override-channels --no-channel-priority
+# (works around a libmamba solver bug with channel_priority=strict).
 set -euo pipefail
 
 if [ -z "${CONDA_BASE:-}" ]; then
@@ -18,12 +17,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_DIR="${CONDA_ENV_DIR:-$REPO_ROOT/conda_envs}"
 
 if [ ! -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
-    echo "Conda-Installation nicht gefunden unter: $CONDA_BASE" >&2
-    echo "Setze CONDA_BASE explizit, z.B.: CONDA_BASE=\$(conda info --base) bash scripts/setup_envs.sh" >&2
+    echo "Conda installation not found at: $CONDA_BASE" >&2
     exit 1
 fi
 source "$CONDA_BASE/etc/profile.d/conda.sh"
-
 if command -v mamba >/dev/null 2>&1; then
     MAMBA="$(command -v mamba)"
 elif [ -x "$CONDA_BASE/bin/mamba" ]; then
@@ -32,11 +29,10 @@ else
     MAMBA="$CONDA_BASE/bin/conda"
 fi
 
-PKGS=("python=3.12" "numpy" "pandas" "scipy" "statsmodels" "matplotlib" "pysam"
-      "bcftools>=1.20" "htslib>=1.20" "fastp" "mosdepth")
-if [ "$(uname -s)" != "Linux" ]; then
-    PKGS+=("minimap2>=2.28" "samtools>=1.20")
-fi
+# Classic bwa instead of bwa-mem2: building a bwa-mem2 index for hg19 needs ~90 GB RAM,
+# so local runs use ALIGNER=bwa.
+PKGS=("python=3.12" "numpy" "pandas" "scipy" "matplotlib" "samtools>=1.20" "bcftools>=1.20" "htslib>=1.20"
+      "bwa" "fastp")
 
 mkdir -p "$ENV_DIR"
 echo "=== baf (${PKGS[*]}) ==="
@@ -44,6 +40,6 @@ if [ ! -d "$ENV_DIR/baf" ]; then
     "$MAMBA" create -y --override-channels --no-channel-priority -c conda-forge -c bioconda \
         -p "$ENV_DIR/baf" "${PKGS[@]}"
 else
-    echo "  bereits vorhanden, überspringe"
+    echo "  already present, skipping"
 fi
-echo "=== Fertig. Env liegt unter $ENV_DIR/baf ==="
+echo "=== Done. Env at $ENV_DIR/baf -- run locally with ALIGNER=bwa ==="

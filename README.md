@@ -1,132 +1,141 @@
 # 🧬 panel-baf
 
-BAF-/LOH- und Kopienzahlprofile aus **Hybrid-Capture-Panel-Daten (Illumina
-Paired-End, Tumor-only)** – unter Nutzung der **Off-Target-Reads**. Auch bei
-kleinem Panel (~150 kb) und nur ~0,1× Off-Target-Tiefe lassen sich so
-LOH, Zugewinne, Verluste, Amplifikationen und der Tumorzellgehalt
-abschätzen.
+Genome-wide **B-allele frequency (BAF) and copy-number figure** from **hybrid-capture panel
+sequencing** (Illumina paired-end, tumour only) – built from the **off-target reads**. Even with a
+small panel (~150 kb) and only ~0.1× off-target depth, the figure shows LOH, gains, losses,
+amplifications and the estimated tumour cell content.
 
 ```text
-📥 FASTQ ──▶ ✂️ fastp ──▶ 🧬 minimap2 (hg19 primär) ──▶ 🧹 markdup
-                                   │
-          ┌────────────────────────┼─────────────────────────┐
-          ▼                        ▼                         ▼
- 🔬 Allelzählung an          📈 Off-Target-Tiefe       🎯 On-Target-Tiefe
- ~7 Mio. 1000G-SNPs          (10 kb, GC + Alu)          je Gen
-          └──────────▶ 🧮 BAF-Likelihood + HMM ◀──────────┘
-                               │
-                 📊 Segmente · Calls · Purity · Plots
+📥 FASTQ ──▶ ✂️ fastp (optional) ──▶ 🧬 bwa-mem2 (hg19, shared with mNGS-pipeline) ──▶ 🧹 markdup
+                                                │
+                 ┌──────────────────────────────┴──────────────────────────────┐
+                 ▼                                                              ▼
+   🔬 allele counts at 7.1 M 1000G SNPs                        📈 off-target read depth
+      (on- and off-target)                                        (10 kb, GC + Alu corrected)
+                 └──────────────▶ 🧮 BAF likelihood + joint HMM ◀───────────────┘
+                                                │
+                       📊 output/<sample>/<sample>.genome_BAF_logR.png / .pdf
 ```
 
-## ✨ Auf einen Blick
+## ✨ Overview
 
-- 🔬 **BAF ohne Genotypisierung:** Bei ~0,1× lassen sich SNP-Genotypen nicht
-  einzeln bestimmen. Jeder SNP mit ≥ 2 Reads liefert eine Likelihood über den
-  Minor-Allel-Anteil *b* heterozygoter SNPs (Hardy-Weinberg-Prior). Summiert
-  über Bins/Segmente ergibt das MLE und 95 %-KI für *b*.
-- 🌍 **Ancestry-Kalibrierung:** Die 1000G-Superpopulation (EUR, AFR, AMR,
-  EAS, SAS oder global) wird per Likelihood gewählt, die Heterozygotie-Rate
-  gefittet. Mit globalen AFs entsteht sonst genomweit scheinbare Imbalance.
-- 📈 **Off-Target-logR:** Capture-Hotspots werden verworfen; Korrektur auf
-  GC und **Alu-Dichte** (Off-Target-Reads sind stark Alu-getrieben).
-- 🧮 **Segmentierung:** gemeinsames HMM über (logR, *b*) pro Chromosomenarm,
-  dann ASCAT-artiger Fit von Tumorzellgehalt und Allelzuständen (z. B. 2+1, 1+0).
-- 🏷️ **Calls:** Amplification, Gain (imbalanced/balanced), Loss/LOH, CN-LOH,
-  Possible imbalance – jeweils mit Konfidenz.
-- ♻️ **Wiederaufnahme:** Fertige Schritte werden erkannt (sicher auf `requeue`).
-- 🖥️ **SLURM:** Auf PALMA ein Job pro Probe; lokal seriell.
+- 📊 **One deliverable:** a publication-ready figure at final print size (174 × 95 mm; 180 mm for
+  Nature) with three aligned tracks – BAF, copy number (log2 ratio) and calls – as 600 dpi PNG and
+  vector PDF with editable text.
+- 🔬 **BAF without genotyping:** at ~0.1× single SNP genotypes cannot be called. Every SNP with
+  ≥ 2 reads contributes a likelihood over the minor-allele fraction *b* of heterozygous SNPs
+  (Hardy–Weinberg prior); summed over bins and segments this yields the MLE and 95 % CI of *b*.
+- 🌍 **Ancestry calibration:** the 1000 Genomes superpopulation (EUR, AFR, AMR, EAS, SAS or global)
+  is chosen by likelihood and the heterozygosity rate is fitted – global AFs otherwise create
+  spurious genome-wide imbalance.
+- 📈 **Off-target log2 ratio:** capture hotspots are discarded; correction for GC and **Alu density**
+  (off-target capture is strongly Alu-driven).
+- 🧮 **Segmentation and calls:** joint HMM over (log2 ratio, *b*) per chromosome arm, then an
+  ASCAT-like fit of tumour cell content and allelic states (e.g. 2+1, 1+0). Calls: amplification,
+  gain, loss with LOH, CN-LOH, possible imbalance.
+- 🖥️ **SLURM / PALMA-II:** one job per sample, software from PALMA modules only (no conda),
+  resumable steps (safe on `requeue`).
 
-## 🚀 Schnellstart (PALMA)
+## 🚀 Quick start (PALMA)
 
 ```bash
 git clone https://github.com/ctho1/panel-baf.git
 cd panel-baf
 
-# 1. Conda-Env einmalig anlegen (minimap2/samtools kommen aus den PALMA-Modulen)
-bash scripts/setup_envs.sh
+# 1. Once: check the modules (report the output if anything is missing)
+bash scripts/check_palma_modules.sh 2>&1 | tee palma_modules.txt
 
-# 2. Panel-BED (hg19, "chr"-Namen) bereitstellen
+# 2. Provide the panel BED (hg19, "chr" names) -- not part of the repository
 mkdir -p references
-cp /pfad/zur/NPMS_v4_targets_hg19.bed references/panel_targets.bed
+cp /path/to/panel_targets_hg19.bed references/panel_targets.bed
 
-# 3. FASTQs nach input/ kopieren und starten
-cp /pfad/zu/*_R1_001.fastq.gz /pfad/zu/*_R2_001.fastq.gz input/
+# 3. Copy the FASTQs into input/ and start
+cp /path/to/*_R1_001.fastq.gz /path/to/*_R2_001.fastq.gz input/
 bash run_pipeline.sh --mail christian.thomas@ukmuenster.de
 ```
 
-Beim ersten Start fehlen die Referenzen → `prepare_reference.sh` läuft als
-vorgeschalteter Job (~30–60 min, v. a. Downloads: hg19-Primärchromosomen +
-minimap2-Index, 1000G-SNP-Panel mit 7,1 Mio. SNPs, Annotation; ca. 12 GB). Alle Probenjobs warten per
-`--dependency` darauf.
+On the first run `prepare_reference.sh` runs as a preceding job (~30 min, mostly downloads:
+1000G SNP panel, Alu track, cytobands, GC/mappability wigs; ~1 GB). hg19 and the bwa-mem2 index
+are **not** rebuilt but linked from mNGS-pipeline
+(`/cloud/wwu1/e_np_ngs/references/genomes/hg19.fa`). All sample jobs wait for the reference job
+via `--dependency`.
 
-Optional:
+Options:
 
 ```bash
-bash run_pipeline.sh --partition normal                 # Partition fest vorgeben
-PANEL_BED=/cloud/.../panel.bed bash run_pipeline.sh      # BED an anderem Ort
-FOCAL_GENES="EGFR;CDKN2A,CDKN2B;MDM2;CDK4" bash run_pipeline.sh
+bash run_pipeline.sh --partition normal            # fixed partition
+FIG_WIDTH_MM=180 bash run_pipeline.sh              # Nature width
+PANEL_BED=/cloud/.../panel.bed bash run_pipeline.sh
 ```
 
-Alle Pfade, Module und Parameter stehen in
-[`scripts/config.sh`](scripts/config.sh) und lassen sich als
-Umgebungsvariablen überschreiben.
+## 📥 Input / 📤 Output
 
-## 📥 Eingaben
-
-| Datei | Hinweis |
+| Path | Content |
 | --- | --- |
-| `input/<Probe>_R1_001.fastq.gz` + `_R2_001` | Illumina Paired-End, flach in `input/` |
-| `references/panel_targets.bed` | Panel-Targets (hg19); **nicht im Repo** |
+| `input/<sample>_R1_001.fastq.gz` + `_R2_001` | Illumina paired-end FASTQs (flat, no subfolders) |
+| `references/panel_targets.bed` | panel targets (hg19); **not in the repository** |
+| **`output/<sample>/<sample>.genome_BAF_logR.png`** | figure, 600 dpi |
+| **`output/<sample>/<sample>.genome_BAF_logR.pdf`** | figure, vector (editable text, rasterized points) |
+| `tmp/<sample>/` | BAM, allele counts, 1-Mb bins, segments with calls, purity fit (intermediate) |
 
-## 📤 Ergebnisse
+Trimmed FASTQs (only created if fastp is available) are deleted at the end of each sample job.
 
-Pro Probe unter `output/<Probe>/`:
+## 🖼️ Figure
 
-| Datei | Inhalt |
-| --- | --- |
-| `<Probe>.genome_BAF_logR.png` | Genomweites BAF-/logR-Profil mit Calls |
-| `<Probe>.focal.png` | Zoom auf `FOCAL_GENES` (Standard: EGFR, CDKN2A/B, PTEN, PDGFRA/KIT) |
-| `chromosomes/<Probe>.chrN.png` | Einzelchromosomen |
-| `<Probe>.segments.tsv` | Segmente: logR, *b* (MLE + KI), p-Imbalance, Call, Konfidenz, Allelzustand |
-| `<Probe>.arms.tsv` | dasselbe pro Chromosomenarm |
-| `<Probe>.gene_coverage.tsv` | On-Target-Tiefe (GC-korr.) + het. SNPs je Gen |
-| `<Probe>.purity.json` | Tumorzellgehalt, logR-Kompression γ |
-| `<Probe>.summary.json` | QC (Reads, Duplikate, On-Target-Anteil, Tiefe), Geschlecht, Ancestry, Events |
-| `qc/` | fastp-Report |
+- **Top – B-allele frequency:** grey points are heterozygous-appearing SNPs (≥ 8 reads) and
+  sliding 5-Mb BAF estimates (mirrored around 0.5); horizontal segments show *b* and 1 − *b*
+  (dark = called, grey = not called).
+- **Middle – copy number (log2 ratio)** of off-target read depth in 1-Mb bins; segments in muted
+  blue; off-scale values are marked by a triangle with the actual value.
+- **Bottom – calls:** red = gains, blue = losses, purple = CN-LOH, hatched = possible imbalance
+  (palette checked for deuteranopia/protanopia).
+- Faint dashed lines: expected levels for 1, 3 and 4 copies at the estimated tumour cell content
+  (right margin: `CN n` and allele ratios `1:0`, `2:1`, `3:1`).
 
-BAM, Allelzählungen und Bin-Tabellen bleiben unter `tmp/<Probe>/`.
+Layout, colours and line widths are defined in `scripts/figure_genome.py` (`STYLE`) and
+`scripts/styles/publication.mplstyle`, so every sample renders identically.
 
-## ⚙️ Ausführung auf PALMA
+## ⚙️ Software on PALMA
 
-Wie in `mNGS-pipeline`: `sinfo`-basierte Wahl zwischen **`normal`** und
-**`requeue`**, Module `palma/2024a` (minimap2 2.29, SAMtools 1.21), alles
-Weitere (fastp, bcftools, mosdepth, Python-Stack) aus der Conda-Env.
-Ressourcen pro Probe: 16 CPUs, 48 GB, ≤ 2 h (typisch ~15 min für 20 Mio.
-Read-Paare). Liegt `/cloud/wwu1/e_np_ngs/references/genomes/hg19.fa` vor,
-wird sie statt eines Downloads genutzt.
+All programs come from the module system (`scripts/config.sh`); `scripts/check_palma_modules.sh`
+lists the available versions and tests exactly these lists:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `BWA_MODULES` | `palma/2024a GCC/13.3.0 bwa-mem2/2.2.1` | alignment (`bwa-mem2 mem`) |
+| `SAMTOOLS_MODULES` | `palma/2024a GCC/13.3.0 SAMtools/1.21` | sorting, duplicates, BAM access |
+| `BCFTOOLS_MODULES` | `palma/2024a GCC/13.3.0 BCFtools/1.21 HTSlib/1.21` | allele counts, bgzip/tabix |
+| `PYTHON_MODULES` | `palma/2024a GCC/13.3.0 SciPy-bundle/2024.05 matplotlib/3.9.2` | analysis + figure (numpy, scipy, pandas, matplotlib) |
+| `FASTP_MODULES` | empty | optional trimming (the aligner soft-clips adapters anyway) |
+
+Different versions can be set without editing files, e.g.
+`BCFTOOLS_MODULES="palma/2023b GCC/13.2.0 BCFtools/1.19" bash run_pipeline.sh`.
+Resources per sample: 16 CPUs, 48 GB, ≤ 2 h (typically ~15 min for 20 M read pairs).
+
+**Local use (no module system):** `bash scripts/setup_envs.sh` creates a small conda env. Building
+a bwa-mem2 index for hg19 needs ~90 GB RAM, so run locally with classic bwa:
+`ALIGNER=bwa EXISTING_HG19_FASTA=/path/hg19.fa bash run_pipeline.sh`.
 
 ## 🧪 Tests
 
 ```bash
-conda_envs/baf/bin/python -m unittest discover -s tests -v
+module purge && ml palma/2024a GCC/13.3.0 SciPy-bundle/2024.05
+python3 -m unittest discover -s tests -v
 ```
 
-Getestet werden u. a. die BAF-Likelihood an simulierten Low-Depth-SNPs
-(balanciert, Verlust bei 60 % Purity, LOH), die Hotspot-robuste
-Ratenschätzung und die HMM-Segmentierung.
+Covered: the BAF likelihood on simulated low-depth SNPs (balanced, loss at 60 % purity, LOH),
+hotspot-robust rate estimation, HMM segmentation, LOWESS, sample discovery and the figure helpers
+(expected levels, label placement).
 
-## ⚠️ Einschränkungen
+## ⚠️ Limitations
 
-- Kein Normal-Referenzpool: logR-Amplituden sind komprimiert (γ ≈ 0,7), und
-  Zugewinne Alu-reicher Chromosomen (v. a. chr19) werden teilweise
-  wegkorrigiert – dort ist die BAF die verlässlichere Evidenz.
-- Off-Target-BAF erfasst LOH/Imbalance ab etwa 10 Mb; subklonale oder kleine
-  Veränderungen nicht sicher. p-Werte ignorieren LD → strenge Schwellen.
-- Einzelne 3–5-Mb-Fenster mit *b* ≈ 0 in sonst neutralen Regionen können
-  Keimbahn-ROH sein, kein Tumor-LOH.
-- On-Target-Tiefe ohne Referenz: nur große Abweichungen (Amplifikation,
-  homozygote Deletion) interpretierbar.
+- No panel of normals: log2 amplitudes are compressed and gains of Alu-rich chromosomes (chr19)
+  are partly corrected away – there the BAF is the more reliable evidence.
+- Off-target BAF resolves LOH/imbalance from roughly 10 Mb upwards; subclonal or small events are
+  not reliably detected. p-values ignore linkage disequilibrium → strict thresholds.
+- Single sliding windows with *b* ≈ 0 in otherwise neutral regions can be germline runs of
+  homozygosity, not tumour LOH.
 
 > [!IMPORTANT]
-> `input/`, `output/`, `tmp/`, `log/` und `references/` gehören nicht ins
-> Repository. Ergebnisse vor diagnostischer Verwendung immer fachlich prüfen.
+> `input/`, `output/`, `tmp/`, `log/` and `references/` never belong in the repository. Review
+> all results before any diagnostic use.

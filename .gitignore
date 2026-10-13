@@ -1,11 +1,11 @@
-# Rohdaten, Referenzen & generierte Ergebnisse -- nie committen (Patientendaten!)
+# Raw data, references and generated results -- never commit (patient data!)
 /input/*
 !/input/.gitkeep
 /references/
 /output/
 /tmp/
 /log/
-/conda_envs/
+/conda_envs*/
 
 *.bed
 *.bam

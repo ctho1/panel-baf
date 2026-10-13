@@ -110,3 +110,37 @@ def viterbi_segment(lr, bll, sigma, mu_grid, b_idx, jump_logp):
     for t in range(T - 1, 0, -1):
         path[t - 1] = bp[t, path[t]]
     return path
+
+
+def lowess(y, x, frac=0.4, it=3):
+    """Robust LOWESS (locally weighted linear regression, tricube weights, bisquare robustness iterations),
+    numpy-only replacement for statsmodels' lowess(..., return_sorted=True). Returns an (n, 2) array of
+    [x_sorted, fitted]. O(n^2) memory -- intended for a few thousand points."""
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    order = np.argsort(x, kind="mergesort")
+    x, y = x[order], y[order]
+    n = len(x)
+    k = max(int(np.ceil(frac * n)), 2)
+    dist = np.abs(x[:, None] - x[None, :])
+    h = np.partition(dist, k - 1, axis=1)[:, k - 1]
+    h = np.where(h > 0, h, 1e-12)
+    w_local = np.clip(1 - (dist / h[:, None]) ** 3, 0, None) ** 3
+    robust = np.ones(n)
+    fitted = y.copy()
+    for _ in range(it + 1):
+        w = w_local * robust[None, :]
+        sw = w.sum(1)
+        mx = (w * x[None, :]).sum(1) / sw
+        my = (w * y[None, :]).sum(1) / sw
+        dx = x[None, :] - mx[:, None]
+        vx = (w * dx ** 2).sum(1)
+        slope = np.where(vx > 1e-12, (w * dx * (y[None, :] - my[:, None])).sum(1) / np.where(vx > 1e-12, vx, 1), 0.0)
+        fitted = my + slope * (x - mx)
+        resid = y - fitted
+        s = np.median(np.abs(resid))
+        if s <= 0:
+            break
+        u = resid / (6 * s)
+        robust = np.clip(1 - u ** 2, 0, None) ** 2
+    return np.column_stack([x, fitted])

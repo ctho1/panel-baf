@@ -10,6 +10,7 @@ AUTOSOMES = [f"chr{i}" for i in range(1, 23)]
 CHROMS = AUTOSOMES + ["chrX"]
 BIN = 1_000_000                                   # analysis bin (logR, BAF)
 BGRID = np.round(np.arange(0, 0.5001, 0.01), 2)   # grid for b (minor-allele fraction of hets)
+REF_FASTA = "hg19.fa"                             # references/hg19.fa (shared PALMA hg19, symlinked)
 
 
 @dataclass
@@ -74,3 +75,9 @@ def bci(ll, level=1.92):
     i = int(np.argmax(ll))
     ok = ll >= ll[i] - level
     return BGRID[i], BGRID[ok].min(), BGRID[ok].max()
+
+
+def read_fai(fasta):
+    return pd.read_csv(fasta + ".fai", sep="\t", header=None, usecols=[0, 1, 2, 3, 4],
+                       names=["chrom", "len", "offset", "linebases", "linewidth"]).set_index("chrom")
+
