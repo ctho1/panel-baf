@@ -19,6 +19,7 @@ from baf_model import robust_rate  # noqa: E402
 SURF, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
 BLUE, ORANGE = "#2a78d6", "#eb6834"
 POINT, POINT_SIZE = "#d3d1ca", 3          # BAF panel: every point light grey, same size
+SEG_LW, SEG_LW_UNCALLED = 1.6, 1.0         # segment line widths
 LOGR_SIZE = 3
 CALL_COL = {"Amplification": "#8f1d1d", "Gain (imbalanced)": "#e34948", "Gain (BAF n.s.)": "#f0a3a2",
             "Gain (balanced)": "#f0a3a2", "Loss/LOH": "#256abf", "Loss (BAF n.s.)": "#9ec5f4",
@@ -62,6 +63,8 @@ def chrom_axes(ax, ymin, ymax, labels=True):
     for i, c in enumerate(plot_chroms):
         if i % 2 == 1:
             ax.add_patch(Rectangle((off[c], ymin), int(fai[c]), ymax - ymin, color="#f0efec", lw=0, zorder=0))
+    for c in plot_chroms[1:]:                     # thin black line between chromosomes
+        ax.axvline(off[c], color=INK, lw=0.5, zorder=5)
     ax.set_xlim(0, GLEN)
     ax.set_xticks([off[c] + fai[c] / 2 for c in plot_chroms])
     ax.set_xticklabels([c.replace("chr", "") for c in plot_chroms] if labels else [], fontsize=8)
@@ -105,7 +108,7 @@ def draw_baf(ax, b, sg, sn, xf, wsize=3, min_depth=8):
         x0, x1 = xf(r.chrom, r.start), xf(r.chrom, r.end)
         called = r.call in CALL_COL
         for y in (r.b, 1 - r.b):
-            ax.plot([x0, x1], [y, y], color=ORANGE if called else MUTED, lw=2.6 if called else 1.6,
+            ax.plot([x0, x1], [y, y], color=ORANGE if called else MUTED, lw=SEG_LW if called else SEG_LW_UNCALLED,
                     solid_capstyle="round", zorder=4)
     ax.axhline(0.5, color=AXIS, lw=0.8, ls=(0, (3, 3)), zorder=1)
     ax.set_ylim(-0.02, 1.02)
@@ -123,7 +126,7 @@ def draw_logr(ax, b, sg, xf, ylim=(-1.5, 1.6)):
     for _, r in sg.iterrows():
         if not np.isnan(r.logR):
             ax.plot([xf(r.chrom, r.start), xf(r.chrom, r.end)], [min(max(r.logR, ylim[0]), ylim[1])] * 2,
-                    color=ORANGE, lw=2, solid_capstyle="round", zorder=4)
+                    color=ORANGE, lw=SEG_LW, solid_capstyle="round", zorder=4)
     ax.axhline(0, color=AXIS, lw=0.8, zorder=1)
     ax.set_ylim(*ylim)
     ax.set_ylabel("log2 ratio (off-target)")
@@ -156,8 +159,8 @@ fig.suptitle(f"{S} – BAF and copy-number profile (panel, on- + off-target SNPs
              f"{params['sex']}, AF: {params['population']})", x=0.125, y=0.965, ha="left", color=INK, fontsize=11)
 h = [plt.Line2D([], [], ls="", marker="o", color=POINT, ms=4,
                 label="BAF: sliding 5-Mb estimates b / 1−b and het. SNPs (≥8 reads)"),
-     plt.Line2D([], [], color=ORANGE, lw=2.6, label="Segment with call"),
-     plt.Line2D([], [], color=MUTED, lw=1.6, label="Segment without call")]
+     plt.Line2D([], [], color=ORANGE, lw=SEG_LW, label="Segment with call"),
+     plt.Line2D([], [], color=MUTED, lw=SEG_LW_UNCALLED, label="Segment without call")]
 axs[0].legend(handles=h, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, frameon=False, fontsize=8, labelcolor=INK2)
 ch = [Rectangle((0, 0), 1, 1, color=v, label=k) for k, v in CALL_COL.items() if k in set(segs.call)]
 if ch:
