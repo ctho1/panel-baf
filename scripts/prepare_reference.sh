@@ -23,7 +23,7 @@ source scripts/software.sh
 
 THREADS=${SLURM_CPUS_PER_TASK:-$THREADS_DEFAULT}
 mkdir -p "$REF_DIR" log
-load_software
+use_modules $BWA_MODULES $SAMTOOLS_MODULES $BCFTOOLS_MODULES
 
 fetch() {  # fetch <url> <dest>  (atomic)
     [ -s "$2" ] && return 0

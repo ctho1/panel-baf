@@ -14,9 +14,10 @@
 : "${PANEL_BED:=$REPO_ROOT/panel/NPMS_v4_targets_hg19.bed}"
 
 # ── Software ────────────────────────────────────────────────────────────────
-# On PALMA everything comes from the module system (no conda needed); the
-# module lists are loaded together via `module purge && ml ...` (see
-# scripts/software.sh). Check availability with scripts/check_palma_modules.sh.
+# On PALMA everything comes from the module system (no conda needed); each step
+# loads only its own module lists via `module purge && ml ...`
+# (alignment: BWA + SAMTOOLS, see scripts/software.sh). Check availability with
+# scripts/check_palma_modules.sh.
 # Without a `module` command (local tests) the conda env from
 # scripts/setup_envs.sh is used instead; USE_CONDA=true forces conda.
 : "${ALIGNER:=bwa-mem2}"     # bwa-mem2 (index *.bwt.2bit.64) | bwa (classic index *.bwt/*.sa)

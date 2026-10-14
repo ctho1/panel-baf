@@ -31,11 +31,15 @@ THREADS=${SLURM_CPUS_PER_TASK:-$THREADS_DEFAULT}
 TMP="tmp/$SAMPLE"
 OUT="output/$SAMPLE"
 mkdir -p "$TMP" "$OUT" log
-load_software
 COMMON=(--sample "$SAMPLE" --tmp "$TMP" --out "$OUT" --ref "$REF_DIR" --bed "$PANEL_BED")
 BAM="$TMP/$SAMPLE.bam"
 T1="$TMP/$SAMPLE.R1.trim.fastq.gz"; T2="$TMP/$SAMPLE.R2.trim.fastq.gz"
 bam_done() { [ -s "$BAM" ] && [ -s "$BAM.bai" ] && [ -s "$TMP/$SAMPLE.flagstat.txt" ]; }
+die_with_log() {  # die_with_log <step> <log>: copy the end of a tool log into the SLURM .err and abort
+    echo "ERROR: $1 failed -- last lines of $2:" >&2
+    tail -n 25 "$2" >&2
+    exit 1
+}
 
 echo "=== panel-baf: $SAMPLE ==="
 echo "Threads: $THREADS | aligner: $ALIGNER | reference: $HG19_FASTA"
@@ -44,6 +48,7 @@ echo "Panel:   $PANEL_BED"
 
 # 1. Optional adapter/polyG trimming (only if fastp is available, e.g. via FASTP_MODULES)
 READS=("$R1" "$R2")
+use_modules $FASTP_MODULES
 if bam_done; then
     echo "--- trimming: alignment already present, skipping ---"
 elif command -v fastp >/dev/null 2>&1; then
@@ -53,7 +58,8 @@ elif command -v fastp >/dev/null 2>&1; then
         echo "--- fastp ---"
         fastp -i "$R1" -I "$R2" -o "$T1.tmp.fastq.gz" -O "$T2.tmp.fastq.gz" \
             --detect_adapter_for_pe --trim_poly_g -l 30 -w "$(( THREADS < 16 ? THREADS : 16 ))" -z 3 \
-            -h "$TMP/$SAMPLE.fastp.html" -j "$TMP/$SAMPLE.fastp.json" 2> "$TMP/fastp.log"
+            -h "$TMP/$SAMPLE.fastp.html" -j "$TMP/$SAMPLE.fastp.json" 2> "$TMP/fastp.log" \
+            || die_with_log fastp "$TMP/fastp.log"
         mv "$T1.tmp.fastq.gz" "$T1"; mv "$T2.tmp.fastq.gz" "$T2"
     fi
     READS=("$T1" "$T2")
@@ -66,11 +72,14 @@ if bam_done; then
     echo "--- alignment: $BAM already present, skipping ---"
 else
     echo "--- alignment ($ALIGNER mem) ---"
+    use_modules $BWA_MODULES $SAMTOOLS_MODULES
     "$ALIGNER" mem -t "$THREADS" -R "@RG\tID:$SAMPLE\tSM:$SAMPLE\tPL:ILLUMINA\tLB:$SAMPLE" \
         "$HG19_FASTA" "${READS[@]}" 2> "$TMP/$ALIGNER.log" \
       | samtools fixmate -m -@ 4 - - \
-      | samtools sort -@ "$(( THREADS / 2 ))" -m 1500M -T "$TMP/sort_tmp" -o "$TMP/$SAMPLE.sorted.bam" -
-    samtools markdup -@ "$THREADS" -s -f "$TMP/$SAMPLE.markdup.txt" "$TMP/$SAMPLE.sorted.bam" "$BAM.tmp" 2> "$TMP/markdup.log"
+      | samtools sort -@ "$(( THREADS / 2 ))" -m 1500M -T "$TMP/sort_tmp" -o "$TMP/$SAMPLE.sorted.bam" - \
+      || die_with_log "$ALIGNER mem" "$TMP/$ALIGNER.log"
+    samtools markdup -@ "$THREADS" -s -f "$TMP/$SAMPLE.markdup.txt" "$TMP/$SAMPLE.sorted.bam" "$BAM.tmp" 2> "$TMP/markdup.log" \
+      || die_with_log "samtools markdup" "$TMP/markdup.log"
     mv "$BAM.tmp" "$BAM"
     samtools index -@ "$THREADS" "$BAM"
     rm -f "$TMP/$SAMPLE.sorted.bam"
@@ -83,6 +92,7 @@ if [ -s "$AD" ]; then
     echo "--- allele counts: already present, skipping ---"
 else
     echo "--- allele counts (bcftools mpileup, MAPQ>=20, BQ>=20, no duplicates) ---"
+    use_modules $BCFTOOLS_MODULES
     mkdir -p "$TMP/mpileup"
     count_chr() {
         c=$1
@@ -98,12 +108,15 @@ else
     rm -rf "$TMP/mpileup"
 fi
 
+# 4.-8. Python steps (read_positions.py also calls samtools)
+use_modules $PYTHON_MODULES $SAMTOOLS_MODULES
+
 # 4. Fragment midpoints (off-target read depth)
 if [ -s "$TMP/$SAMPLE.fragment_midpoints.npz" ]; then
     echo "--- fragment positions: already present, skipping ---"
 else
     echo "--- fragment positions ---"
-    "$PY" scripts/read_positions.py "${COMMON[@]}"
+    python3 scripts/read_positions.py "${COMMON[@]}"
 fi
 
 # 5. SNP table (allele counts + population AFs + distance to targets)
@@ -111,7 +124,7 @@ if [ -s "$TMP/$SAMPLE.snps.tsv.gz" ]; then
     echo "--- SNP table: already present, skipping ---"
 else
     echo "--- SNP table ---"
-    "$PY" scripts/snp_table.py "${COMMON[@]}"
+    python3 scripts/snp_table.py "${COMMON[@]}"
 fi
 
 # 6. BAF likelihoods, log2 ratio, segmentation
@@ -119,13 +132,13 @@ if [ -s "$TMP/$SAMPLE.segments.tsv" ] && [ -s "$TMP/$SAMPLE.params.json" ]; then
     echo "--- BAF/log2 profile: already present, skipping ---"
 else
     echo "--- BAF/log2 profile ---"
-    "$PY" scripts/baf_cn_profile.py "${COMMON[@]}"
+    python3 scripts/baf_cn_profile.py "${COMMON[@]}"
 fi
 
 # 7. Purity fit + calls, 8. figure (always regenerated)
 echo "--- calls and figure ---"
-"$PY" scripts/call_segments.py "${COMMON[@]}"
-"$PY" scripts/plot_profile.py "${COMMON[@]}" --width-mm "$FIG_WIDTH_MM"
+python3 scripts/call_segments.py "${COMMON[@]}"
+python3 scripts/plot_profile.py "${COMMON[@]}" --width-mm "$FIG_WIDTH_MM"
 
 # 9. Clean up: trimmed FASTQs are no longer needed (the BAM stays in tmp/)
 rm -f "$T1" "$T2"

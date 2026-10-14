@@ -35,33 +35,37 @@ for name in bwa-mem2 SAMtools BCFtools HTSlib fastp SciPy-bundle matplotlib; do
 done
 echo
 
-echo "### 3. Test of the module lists in scripts/config.sh"
-echo "BWA_MODULES=$BWA_MODULES"
-echo "SAMTOOLS_MODULES=$SAMTOOLS_MODULES"
-echo "BCFTOOLS_MODULES=$BCFTOOLS_MODULES"
-echo "PYTHON_MODULES=$PYTHON_MODULES"
-echo "FASTP_MODULES=$FASTP_MODULES"
-if load_software; then
-    echo "OK: all required programs found"
-else
-    echo "ERROR while loading (see above)"
-fi
-module list 2>&1
-for tool in bwa-mem2 bwa samtools bcftools bgzip tabix fastp python3; do
-    printf '%-9s %s\n' "$tool" "$(command -v "$tool" || echo '-')"
-done
-samtools --version 2>/dev/null | head -1
-bcftools --version 2>/dev/null | head -1
+echo "### 3. Test of the module lists per step (loaded exactly as in sample_pipeline.sh)"
+show() { for tool in "$@"; do printf '  %-9s %s\n' "$tool" "$(command -v "$tool" || echo MISSING)"; done; }
+
+echo "--- alignment: $BWA_MODULES $SAMTOOLS_MODULES"
+use_modules $BWA_MODULES $SAMTOOLS_MODULES
+echo "  PATH length: ${#PATH} characters"
+show "$ALIGNER" samtools
+[ "$ALIGNER" != "bwa-mem2" ] || echo "  bwa-mem2 version: $(bwa-mem2 version 2>&1 | tail -1)"
+samtools --version 2>/dev/null | head -1 | sed 's/^/  /'
+
+echo "--- allele counts: $BCFTOOLS_MODULES"
+use_modules $BCFTOOLS_MODULES
+show bcftools bgzip tabix
+bcftools --version 2>/dev/null | head -1 | sed 's/^/  /'
+
+echo "--- Python steps: $PYTHON_MODULES $SAMTOOLS_MODULES"
+use_modules $PYTHON_MODULES $SAMTOOLS_MODULES
+show python3 samtools
 python3 - <<'EOF' 2>&1
 import sys
-print("python", sys.version.split()[0])
+print("  python", sys.version.split()[0])
 for m in ("numpy", "scipy", "pandas", "matplotlib"):
     try:
         mod = __import__(m)
-        print(f"{m:10s} {mod.__version__}")
+        print(f"  {m:10s} {mod.__version__}")
     except Exception as exc:
-        print(f"{m:10s} MISSING ({exc})")
+        print(f"  {m:10s} MISSING ({exc})")
 EOF
+
+echo "--- fastp (optional): ${FASTP_MODULES:-not configured}"
+if [ -n "$FASTP_MODULES" ]; then use_modules $FASTP_MODULES; show fastp; fi
 echo
 echo "### 4. Shared hg19 reference (EXISTING_HG19_FASTA)"
 ls -la "$EXISTING_HG19_FASTA"* 2>&1 | head -12
