@@ -124,7 +124,7 @@ lists the available versions and tests exactly these lists:
 
 Different versions can be set without editing files, e.g.
 `BCFTOOLS_MODULES="palma/2023b GCC/13.2.0 BCFtools/1.19" bash run_pipeline.sh`.
-Resources per sample: 16 CPUs, 48 GB, ≤ 2 h (typically ~15 min for 20 M read pairs).
+Resources per sample: 36 CPUs, 64 GB, ≤ 2 h (bwa-mem2 runs with fixed 100-Mbp batches, `-K`).
 
 **Local use (no module system):** `bash scripts/setup_envs.sh` creates a small conda env. Building
 a bwa-mem2 index for hg19 needs ~90 GB RAM, so run locally with classic bwa:

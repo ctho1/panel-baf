@@ -13,8 +13,8 @@
 # Usage: sample_pipeline.sh <sample> <R1.fastq.gz> <R2.fastq.gz>
 #SBATCH --job-name=baf
 #SBATCH --partition=normal
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=48G
+#SBATCH --cpus-per-task=36
+#SBATCH --mem=64G
 #SBATCH --time=2:00:00
 #SBATCH --error=./log/%x_%j.err.txt
 #SBATCH --output=./log/%x_%j.out.txt
@@ -73,10 +73,13 @@ if bam_done; then
 else
     echo "--- alignment ($ALIGNER mem) ---"
     use_modules $BWA_MODULES $SAMTOOLS_MODULES
-    "$ALIGNER" mem -t "$THREADS" -R "@RG\tID:$SAMPLE\tSM:$SAMPLE\tPL:ILLUMINA\tLB:$SAMPLE" \
+    rm -f "$TMP"/sort_tmp.*.bam   # temp files of an aborted run (OOM, requeue)
+    # -K: fixed 100-Mbp batches instead of 10 Mbp per thread, so memory does not grow with the
+    # thread count (bwa-mem2 needs ~2 kB per read of a batch; short reads = many reads per batch)
+    "$ALIGNER" mem -t "$THREADS" -K 100000000 -R "@RG\tID:$SAMPLE\tSM:$SAMPLE\tPL:ILLUMINA\tLB:$SAMPLE" \
         "$HG19_FASTA" "${READS[@]}" 2> "$TMP/$ALIGNER.log" \
       | samtools fixmate -m -@ 4 - - \
-      | samtools sort -@ "$(( THREADS / 2 ))" -m 1500M -T "$TMP/sort_tmp" -o "$TMP/$SAMPLE.sorted.bam" - \
+      | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -T "$TMP/sort_tmp" -o "$TMP/$SAMPLE.sorted.bam" - \
       || die_with_log "$ALIGNER mem" "$TMP/$ALIGNER.log"
     samtools markdup -@ "$THREADS" -s -f "$TMP/$SAMPLE.markdup.txt" "$TMP/$SAMPLE.sorted.bam" "$BAM.tmp" 2> "$TMP/markdup.log" \
       || die_with_log "samtools markdup" "$TMP/markdup.log"
